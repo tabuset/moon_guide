@@ -264,9 +264,9 @@
             <div class="speed-control">
                 <span class="speed-title">再生スピード</span>
                 <div class="radio-group">
-                    <label class="radio-label"><input type="radio" name="speed" value="0.1" checked> 普通</label>
-                    <label class="radio-label"><input type="radio" name="speed" value="0.05"> 遅め</label>
-                    <label class="radio-label"><input type="radio" name="speed" value="0.015"> 超遅</label>
+                    <label class="radio-label"><input type="radio" name="speed" value="0.1"> 速め</label>
+                    <label class="radio-label"><input type="radio" name="speed" value="0.05" checked> 普通</label>
+                    <label class="radio-label"><input type="radio" name="speed" value="0.015"> 遅め</label>
                 </div>
             </div>
         </div>
@@ -313,7 +313,7 @@
             isPlaying: false,
             animationId: null,
             moonPeriodHours: 29.53 * 24,
-            speed: 0.1,
+            speed: 0.05,
             maxTime: 1440 // 60 days
         };
 
@@ -595,15 +595,31 @@
             
             const sunAltitude = Math.cos(sunRelAngle); 
 
+            // **3. 月の位置を先に計算** (星のクリッピングのため)
+            const moonSpaceAngle = getMoonOrbitAngle(state.time);
+            let moonRelAngle = obsAngle - moonSpaceAngle;
+            moonRelAngle = Math.atan2(Math.sin(moonRelAngle), Math.cos(moonRelAngle));
+
+            const celestialR = pivotRadius;
+            const moonX = cx - celestialR * Math.sin(moonRelAngle);
+            const moonY = pivotY - celestialR * Math.cos(moonRelAngle);
+            const moonRadius = 28; // 表示サイズ
+
+            // 1. 背景を描画
             drawSkyGradient(SKY_CTX, w, h, sunAltitude);
 
-            // 2. 星
-            const isDay = sunAltitude > 0;
-            const brightness = isDay ? Math.max(0, 1 - sunAltitude * 2.5) : 1;
-            const isStarsVisible = brightness > 0;
+            // 2. 星 (常時描画するが、明るさで透明度を変える)
+            // 空の明るさに負けて見えなくなる演出
+            // sunAltitude が 0.4 (約20度) を超えると完全に見えなくなる
+            let starVisibility = 1.0;
+            if (sunAltitude > 0.4) starVisibility = 0;
+            else if (sunAltitude > -0.1) {
+                // -0.1(薄明) 〜 0.4(昼) の間で 1.0 -> 0.0 に減衰
+                starVisibility = 1.0 - ((sunAltitude + 0.1) / 0.5);
+            }
 
-            if (isStarsVisible) {
-                SKY_CTX.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+            if (starVisibility > 0) {
+                SKY_CTX.fillStyle = `rgba(255, 255, 255, ${starVisibility})`;
                 STARS.forEach(star => {
                     let starRelAngle = obsAngle - star.angle;
                     const R = pivotRadius * star.radiusOffset;
@@ -611,6 +627,17 @@
                     const sy = pivotY - R * Math.cos(starRelAngle);
 
                     if (sy < horizonY) { 
+                        // **クリッピング処理**: 月の後ろにある星は描画しない
+                        // 月が地平線より上にある場合のみ判定
+                        if (moonY < horizonY + 80) {
+                            const dx = sx - moonX;
+                            const dy = sy - moonY;
+                            // 月の半径内ならスキップ
+                            if (dx*dx + dy*dy < moonRadius * moonRadius) {
+                                return; 
+                            }
+                        }
+                        
                         SKY_CTX.beginPath();
                         SKY_CTX.arc(sx, sy, star.size, 0, Math.PI*2);
                         SKY_CTX.fill();
@@ -633,7 +660,6 @@
             SKY_CTX.fillText("西", w * 0.9, horizonY + 30);
 
             // 4. 太陽の描画
-            const celestialR = pivotRadius;
             const sunX = cx - celestialR * Math.sin(sunRelAngle);
             const sunY = pivotY - celestialR * Math.cos(sunRelAngle);
 
@@ -652,20 +678,13 @@
                 SKY_CTX.fill();
             }
 
-            // 5. 月の描画
-            const moonSpaceAngle = getMoonOrbitAngle(state.time);
-            let moonRelAngle = obsAngle - moonSpaceAngle;
-            moonRelAngle = Math.atan2(Math.sin(moonRelAngle), Math.cos(moonRelAngle));
-
-            const moonX = cx - celestialR * Math.sin(moonRelAngle);
-            const moonY = pivotY - celestialR * Math.cos(moonRelAngle);
-
+            // 5. 月の描画 (位置計算は先頭で実施済み)
             const phaseInfo = getPhaseInfo(moonSpaceAngle);
 
             if (moonY < horizonY + 80) {
                 const isBrightSky = sunAltitude > -0.1;
-                // 星が見えているかどうかも渡す
-                drawUprightMoonPhase(SKY_CTX, moonX, moonY, 28, phaseInfo.radians, isBrightSky, isStarsVisible);
+                // isStarsVisible引数は削除し、sunAltitudeを渡す
+                drawUprightMoonPhase(SKY_CTX, moonX, moonY, moonRadius, phaseInfo.radians, sunAltitude);
                 
                 if(PHASE_NAME_DISPLAY.innerText !== phaseInfo.name) {
                     PHASE_NAME_DISPLAY.innerText = phaseInfo.name;
@@ -707,40 +726,47 @@
             ctx.fillRect(0, 0, w, h);
         }
 
-        // isStarsVisible引数を追加：星が見えているときは、月の影を不透明にして星を隠す
-        function drawUprightMoonPhase(ctx, x, y, r, phaseRad, isDay, isStarsVisible) {
+        // 月の描画 (星の描画順序変更に伴い修正)
+        function drawUprightMoonPhase(ctx, x, y, r, phaseRad, sunAltitude) {
             ctx.save();
             ctx.translate(x, y);
+
+            // --- 月の影部分 (Dark Side) ---
+            // 星は既にクリッピングされているので、透ける心配はない。
+            // 空の色に溶け込ませるため、明るいときは透明にする。
+            
+            let shadowAlpha = 1.0;
+            if (sunAltitude > 0.1) {
+                // 昼間は完全に透明 (空の色そのまま)
+                shadowAlpha = 0;
+            } else if (sunAltitude > -0.2) {
+                // 薄明 (-0.2 〜 0.1): 徐々に透明に
+                // -0.2 (夜) -> Alpha 1.0
+                // 0.1 (昼) -> Alpha 0.0
+                shadowAlpha = 1.0 - ((sunAltitude + 0.2) / 0.3);
+            }
+            // 夜 (-0.2以下) は Alpha 1.0
 
             ctx.beginPath();
             ctx.arc(0, 0, r, 0, Math.PI * 2);
             
-            // ベース（影部分）の描画
-            if (isDay) {
-                if (isStarsVisible) {
-                    // 星が見えている（薄暮など）なら、不透明な影色で星を隠す
-                    ctx.fillStyle = "#1e293b"; 
-                    ctx.fill();
-                } else {
-                    // 完全な昼間なら、薄く透ける（青空に馴染む）
-                    // ただし点線アウトラインが必要な場合（新月付近）を除く
-                    if (phaseRad < 0.2 || phaseRad > 2*Math.PI - 0.2) {
-                        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-                        ctx.setLineDash([2, 3]);
-                        ctx.stroke();
-                        ctx.restore();
-                        return;
-                    }
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.1)"; 
-                    ctx.fill();
-                }
-            } else {
-                // 夜は不透明な影色
-                ctx.fillStyle = "#1e293b"; 
+            // 影部分を描画
+            if (shadowAlpha > 0.01) {
+                ctx.fillStyle = `rgba(30, 41, 59, ${shadowAlpha})`; // 夜の影色
                 ctx.fill();
             }
 
-            ctx.fillStyle = isDay ? "#ffffff" : "#f8fafc";
+            // 新月付近の点線アウトライン (昼間で影が透明なときだけ描く)
+            if (shadowAlpha < 0.1 && (phaseRad < 0.2 || phaseRad > 2*Math.PI - 0.2)) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                ctx.setLineDash([2, 3]);
+                ctx.stroke();
+            }
+
+            // --- 月の光部分 (Bright Side) ---
+            // 昼間は真っ白だと強すぎるので少し明るさを落とすなどしても良いが、今回は白のまま
+            ctx.fillStyle = (sunAltitude > 0) ? "#ffffff" : "#f8fafc";
+            
             const p = phaseRad % (2 * Math.PI);
 
             ctx.beginPath();
