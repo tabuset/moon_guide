@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>月の満ち欠けシミュレーター (修正版)</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --accent-color: #38bdf8;
+            --sun-color: #fcd34d;
+            --moon-light: #f1f5f9;
+            --moon-shadow: #334155;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .view-panel {
+            flex: 1;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+        }
+
+        .view-label {
+            position: absolute;
+            top: 15px;
+            right: 15px; 
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            pointer-events: none;
+            z-index: 10;
+            border-right: 3px solid var(--accent-color);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            background-color: #020617; 
+        }
+
+        .controls {
+            width: 100%;
+            max-width: 950px;
+            background-color: var(--panel-bg);
+            padding: 15px 25px;
+            border-radius: 12px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
+        }
+
+        .control-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            border: none;
+            color: #0f172a;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: background 0.2s;
+            width: 100%;
+            min-width: 100px;
+        }
+
+        .btn:hover {
+            background-color: #7dd3fc;
+        }
+
+        .speed-control {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: rgba(255,255,255,0.05);
+            padding: 6px 10px;
+            border-radius: 6px;
+            min-width: 140px;
+        }
+        
+        .speed-title {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+
+        .radio-group {
+            display: flex;
+            justify-content: space-between;
+            gap: 5px;
+        }
+
+        .radio-label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #cbd5e1;
+            font-size: 0.85rem;
+        }
+        
+        .radio-label:hover {
+            color: var(--accent-color);
+        }
+
+        .radio-label input {
+            cursor: pointer;
+            accent-color: var(--accent-color);
+        }
+
+        .slider-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            height: 6px;
+            background: #475569;
+            border-radius: 3px;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            border: 2px solid var(--panel-bg);
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+
+        .info-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 2px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .data-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .phase-name {
+            font-weight: bold;
+            color: #fbbf24;
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            body {
+                height: auto;
+                overflow-y: auto;
+            }
+            canvas {
+                min-height: 280px;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            .control-left {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+            .info-display {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>月の満ち欠けシミュレーター</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Orbit View (Left) -->
+        <div class="view-panel">
+            <div class="view-label">宇宙からの視点 (北極上空)</div>
+            <canvas id="orbitCanvas"></canvas>
+        </div>
+
+        <!-- Sky View (Right) -->
+        <div class="view-panel">
+            <div class="view-label">地球からの視点 (南の空)</div>
+            <canvas id="skyCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-left">
+            <button id="playBtn" class="btn">再生</button>
+            <div class="speed-control">
+                <span class="speed-title">再生スピード</span>
+                <div class="radio-group">
+                    <label class="radio-label"><input type="radio" name="speed" value="0.1" checked> 普通</label>
+                    <label class="radio-label"><input type="radio" name="speed" value="0.05"> 遅め</label>
+                    <label class="radio-label"><input type="radio" name="speed" value="0.015"> 超遅</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="slider-container">
+            <div class="info-display">
+                <div class="data-group">
+                    <span id="dayDisplay">経過日数: 0日</span>
+                    <span id="timeDisplay">時刻: 12:00</span>
+                </div>
+                <span id="phaseName" class="phase-name">新月</span>
+            </div>
+            <!-- 60日 * 24時間 = 1440 -->
+            <input type="range" id="timeSlider" min="0" max="1440" value="12" step="0.1">
+        </div>
+    </div>
+
+    <script>
+        const ORBIT_CANVAS = document.getElementById('orbitCanvas');
+        const SKY_CANVAS = document.getElementById('skyCanvas');
+        const ORBIT_CTX = ORBIT_CANVAS.getContext('2d');
+        const SKY_CTX = SKY_CANVAS.getContext('2d');
+        
+        const PLAY_BTN = document.getElementById('playBtn');
+        const TIME_SLIDER = document.getElementById('timeSlider');
+        const DAY_DISPLAY = document.getElementById('dayDisplay');
+        const TIME_DISPLAY = document.getElementById('timeDisplay');
+        const PHASE_NAME_DISPLAY = document.getElementById('phaseName');
+        const SPEED_RADIOS = document.querySelectorAll('input[name="speed"]');
+
+        // Stars Data
+        const STARS = [];
+        for(let i=0; i<200; i++) {
+            STARS.push({
+                angle: Math.random() * Math.PI * 2, 
+                radiusOffset: Math.random() * 0.4 + 0.8, 
+                size: Math.random() * 1.5 + 0.5,
+                brightness: Math.random()
+            });
+        }
+
+        let state = {
+            time: 12, // Start at Noon (12:00)
+            isPlaying: false,
+            animationId: null,
+            moonPeriodHours: 29.53 * 24,
+            speed: 0.1,
+            maxTime: 1440 // 60 days
+        };
+
+        function resizeCanvas() {
+            const panels = document.querySelectorAll('.view-panel');
+            [ORBIT_CANVAS, SKY_CANVAS].forEach((canvas, index) => {
+                const rect = panels[index].getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+            });
+            draw();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Core Logic ---
+
+        // 太陽を「左」に設定 (Angle = PI)
+        const SUN_ANGLE = Math.PI; 
+
+        // 月の位置を計算 (反時計回り)
+        function getMoonOrbitAngle(time) {
+            const cycleProgress = (time % state.moonPeriodHours) / state.moonPeriodHours;
+            // スタート地点は左(PI)。そこから反時計回りに進むので - cycle * 2PI
+            return (SUN_ANGLE - cycleProgress * 2 * Math.PI + 2 * Math.PI) % (2 * Math.PI);
+        }
+
+        // 地球の自転角度 (反時計回り)
+        function getEarthRotationAngle(time) {
+            const dayProgress = (time - 12) / 24;
+            return (SUN_ANGLE - dayProgress * 2 * Math.PI + 2 * Math.PI) % (2 * Math.PI);
+        }
+
+        // 月齢計算と満ち欠けの名前
+        function getPhaseInfo(moonAngle) {
+            let diff = SUN_ANGLE - moonAngle;
+            // 0～2PIに正規化
+            diff = (diff % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+            
+            const deg = (diff * 180 / Math.PI);
+            
+            let name = "";
+            if (deg > 350 || deg <= 10) name = "新月 (しんげつ)";
+            else if (deg > 10 && deg < 80) name = "三日月 (みかづき)";
+            else if (deg >= 80 && deg <= 100) name = "上弦の月 (じょうげん)";
+            else if (deg > 100 && deg < 170) name = "十三夜 (じゅうさんや)";
+            else if (deg >= 170 && deg <= 190) name = "満月 (まんげつ)";
+            else if (deg > 190 && deg < 260) name = "十八夜 (居待月)";
+            else if (deg >= 260 && deg <= 280) name = "下弦の月 (かげん)";
+            else name = "二十六夜 (有明月)";
+
+            return { degree: deg, name: name, radians: diff };
+        }
+
+        function formatTime(totalHours) {
+            const days = Math.floor(totalHours / 24);
+            const hours = Math.floor(totalHours % 24);
+            const mins = Math.floor((totalHours % 1) * 60);
+            return {
+                dayStr: `経過日数: ${days}日`,
+                timeStr: `時刻: ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`,
+                // 描画用の簡略テキスト
+                drawStr: `${days}日目 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+            };
+        }
+
+        // --- Orbit View (太陽は左) ---
+        function drawOrbitView() {
+            const w = ORBIT_CANVAS.width;
+            const h = ORBIT_CANVAS.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const earthRadius = Math.min(w, h) * 0.08;
+            const orbitRadius = Math.min(w, h) * 0.35;
+            const moonRadius = earthRadius * 0.35;
+
+            ORBIT_CTX.clearRect(0, 0, w, h);
+
+            // 1. 太陽の光 (左から右へ)
+            const gradient = ORBIT_CTX.createLinearGradient(0, 0, w * 0.3, 0);
+            gradient.addColorStop(0, "rgba(253, 224, 71, 0.6)");
+            gradient.addColorStop(1, "rgba(253, 224, 71, 0)");
+            
+            ORBIT_CTX.fillStyle = gradient;
+            ORBIT_CTX.fillRect(0, 0, w * 0.3, h);
+
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.strokeStyle = "rgba(252, 211, 77, 0.4)";
+            ORBIT_CTX.lineWidth = 2;
+            for(let y = 0; y < h; y += 25) {
+                ORBIT_CTX.moveTo(0, y); 
+                ORBIT_CTX.lineTo(w * 0.25, y);
+            }
+            ORBIT_CTX.stroke();
+
+            ORBIT_CTX.fillStyle = "#fff";
+            ORBIT_CTX.font = "14px sans-serif";
+            ORBIT_CTX.textAlign = "left";
+            ORBIT_CTX.fillText("太陽の光", 10, cy - 10);
+            ORBIT_CTX.textAlign = "center";
+
+            // 2. 地球描画
+            ORBIT_CTX.save();
+            ORBIT_CTX.translate(cx, cy);
+
+            // 2-a. 海（全体）
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.arc(0, 0, earthRadius, 0, Math.PI * 2);
+            ORBIT_CTX.fillStyle = "#3b82f6"; // 青い海
+            ORBIT_CTX.fill();
+
+            // 2-b. 地図（回転あり）
+            const obsAngle = getEarthRotationAngle(state.time);
+            ORBIT_CTX.save();
+            ORBIT_CTX.rotate(obsAngle); 
+            // 座標系: X軸正方向(右)が日本(観測者)の位置。
+            // 北極点（中心）は海。
+
+            // 大陸カラー
+            ORBIT_CTX.fillStyle = "#10b981"; // エメラルドグリーン
+            
+            // --- ユーラシア大陸 ---
+            // 右（日本）から時計回りに配置。中心付近（北極海）は空ける。
+            ORBIT_CTX.beginPath();
+            // カムチャッカ・オホーツク
+            ORBIT_CTX.moveTo(earthRadius * 0.4, -earthRadius * 0.1); 
+            // 日本海沿岸
+            ORBIT_CTX.lineTo(earthRadius * 0.55, 0.1 * earthRadius);
+            // 中国〜東南アジア
+            ORBIT_CTX.lineTo(earthRadius * 0.35, 0.5 * earthRadius);
+            // インド (中心から遠い)
+            ORBIT_CTX.lineTo(0.05 * earthRadius, 0.6 * earthRadius);
+            // アラビア
+            ORBIT_CTX.lineTo(-earthRadius * 0.2, 0.5 * earthRadius);
+            // アフリカ (一部)
+            ORBIT_CTX.lineTo(-earthRadius * 0.4, 0.7 * earthRadius); 
+            // ヨーロッパ
+            ORBIT_CTX.lineTo(-earthRadius * 0.4, 0.1 * earthRadius);
+            // ロシア北岸 (北極海沿い、中心を避ける)
+            ORBIT_CTX.lineTo(-earthRadius * 0.1, 0.15 * earthRadius); 
+            ORBIT_CTX.lineTo(earthRadius * 0.2, 0.15 * earthRadius);
+            ORBIT_CTX.closePath();
+            ORBIT_CTX.fill();
+
+            // --- 北米大陸 ---
+            // 右（日本）の反対側、反時計回りに配置
+            ORBIT_CTX.beginPath();
+            // アラスカ
+            ORBIT_CTX.moveTo(earthRadius * 0.35, -earthRadius * 0.25);
+            // 西海岸
+            ORBIT_CTX.lineTo(earthRadius * 0.25, -earthRadius * 0.45);
+            // メキシコ
+            ORBIT_CTX.lineTo(0, -earthRadius * 0.55);
+            // 東海岸
+            ORBIT_CTX.lineTo(-earthRadius * 0.2, -earthRadius * 0.45);
+            // カナダ北岸 (北極海沿い)
+            ORBIT_CTX.lineTo(-earthRadius * 0.1, -earthRadius * 0.25);
+            ORBIT_CTX.lineTo(earthRadius * 0.1, -earthRadius * 0.2);
+            ORBIT_CTX.closePath();
+            ORBIT_CTX.fill();
+
+            // --- グリーンランド ---
+            ORBIT_CTX.beginPath();
+            // 北米の北東、ヨーロッパの西
+            ORBIT_CTX.moveTo(-earthRadius * 0.15, -earthRadius * 0.25);
+            ORBIT_CTX.lineTo(-earthRadius * 0.15, -earthRadius * 0.4);
+            ORBIT_CTX.lineTo(-earthRadius * 0.3, -earthRadius * 0.3);
+            ORBIT_CTX.lineTo(-earthRadius * 0.25, -earthRadius * 0.15);
+            ORBIT_CTX.closePath();
+            ORBIT_CTX.fill();
+
+            // --- オーストラリア ---
+            // 東南アジアの南東
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.ellipse(earthRadius * 0.2, 0.7 * earthRadius, earthRadius * 0.08, earthRadius * 0.06, 0.8, 0, Math.PI*2);
+            ORBIT_CTX.fill();
+
+            // --- 日本列島 (赤) ---
+            // ローカル座標の「右 (角度0)」に配置
+            ORBIT_CTX.fillStyle = "#ef4444";
+            ORBIT_CTX.beginPath();
+            // 本州・四国・九州
+            ORBIT_CTX.ellipse(earthRadius * 0.75, 0, earthRadius * 0.15, earthRadius * 0.05, 0.3, 0, Math.PI*2);
+            // 北海道
+            ORBIT_CTX.ellipse(earthRadius * 0.82, -earthRadius * 0.12, earthRadius * 0.05, earthRadius * 0.04, 0.5, 0, Math.PI*2);
+            ORBIT_CTX.fill();
+
+            ORBIT_CTX.restore(); // 地図の回転終了
+
+            // 2-c. 夜の影（回転なし、常に太陽の反対側が暗い）
+            // 太陽は左(PI)にあるので、右側(-PI/2 ～ PI/2)が夜。
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.arc(0, 0, earthRadius, -Math.PI/2, Math.PI/2);
+            ORBIT_CTX.fillStyle = "rgba(15, 23, 42, 0.8)"; // 半透明の暗い色
+            ORBIT_CTX.fill();
+
+            // 観測者（赤い点） - 日本の上に重ねる
+            const obsX = Math.cos(obsAngle) * (earthRadius * 0.75); // 日本の中心半径に合わせる
+            const obsY = Math.sin(obsAngle) * (earthRadius * 0.75);
+
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.arc(obsX, obsY, 3, 0, Math.PI * 2);
+            ORBIT_CTX.fillStyle = "#ffffff"; // 日本が赤いので、点は白
+            ORBIT_CTX.fill();
+            ORBIT_CTX.strokeStyle = "#ef4444";
+            ORBIT_CTX.lineWidth = 1;
+            ORBIT_CTX.stroke();
+
+            // 視野コーン
+            // 観測者の位置から外側へ
+            const cornStartR = earthRadius * 0.75;
+            const cornX = Math.cos(obsAngle) * cornStartR;
+            const cornY = Math.sin(obsAngle) * cornStartR;
+            
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.moveTo(cornX, cornY);
+            ORBIT_CTX.arc(0, 0, earthRadius + 50, obsAngle - 0.6, obsAngle + 0.6);
+            ORBIT_CTX.lineTo(cornX, cornY);
+            ORBIT_CTX.fillStyle = "rgba(255, 255, 255, 0.15)";
+            ORBIT_CTX.fill();
+            ORBIT_CTX.restore();
+
+            // 3. 月
+            const moonAngle = getMoonOrbitAngle(state.time);
+            const mx = cx + Math.cos(moonAngle) * orbitRadius;
+            const my = cy + Math.sin(moonAngle) * orbitRadius;
+
+            ORBIT_CTX.save();
+            ORBIT_CTX.translate(mx, my);
+
+            // 月の光の当たり方 (太陽が左)
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.arc(0, 0, moonRadius, Math.PI/2, 3*Math.PI/2); // 左
+            ORBIT_CTX.fillStyle = "#f1f5f9"; 
+            ORBIT_CTX.fill();
+
+            ORBIT_CTX.beginPath();
+            ORBIT_CTX.arc(0, 0, moonRadius, -Math.PI/2, Math.PI/2); // 右
+            ORBIT_CTX.fillStyle = "#334155";
+            ORBIT_CTX.fill();
+
+            ORBIT_CTX.restore();
+
+            // ラベル
+            ORBIT_CTX.fillStyle = "#94a3b8";
+            ORBIT_CTX.textAlign = "center";
+            ORBIT_CTX.fillText("地球", cx, cy + earthRadius + 20);
+            ORBIT_CTX.fillText("月", mx, my + moonRadius + 20);
+
+            // 時間表示（画面内）
+            const timeData = formatTime(state.time);
+            ORBIT_CTX.font = "bold 15px monospace";
+            ORBIT_CTX.fillStyle = "#ffffff";
+            ORBIT_CTX.textAlign = "left";
+            // 背景に薄い黒を入れて読みやすくする
+            const textW = ORBIT_CTX.measureText(timeData.drawStr).width;
+            ORBIT_CTX.fillStyle = "rgba(0,0,0,0.5)";
+            ORBIT_CTX.fillRect(10, 10, textW + 10, 24);
+            ORBIT_CTX.fillStyle = "#ffffff";
+            ORBIT_CTX.fillText(timeData.drawStr, 15, 27);
+        }
+
+        // --- Sky View ---
+        function drawSkyView() {
+            const w = SKY_CANVAS.width;
+            const h = SKY_CANVAS.height;
+            const cx = w / 2;
+            const horizonY = h * 0.85;
+
+            SKY_CTX.clearRect(0, 0, w, h);
+
+            const pivotRadius = w * 1.3; 
+            const apexY = h * 0.15;
+            const pivotY = apexY + pivotRadius;
+
+            // 1. 太陽の位置と空の色
+            const obsAngle = getEarthRotationAngle(state.time);
+            let sunRelAngle = obsAngle - SUN_ANGLE;
+            sunRelAngle = Math.atan2(Math.sin(sunRelAngle), Math.cos(sunRelAngle));
+            
+            const sunAltitude = Math.cos(sunRelAngle); 
+
+            drawSkyGradient(SKY_CTX, w, h, sunAltitude);
+
+            // 2. 星
+            const isDay = sunAltitude > 0;
+            const brightness = isDay ? Math.max(0, 1 - sunAltitude * 2.5) : 1;
+            const isStarsVisible = brightness > 0;
+
+            if (isStarsVisible) {
+                SKY_CTX.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+                STARS.forEach(star => {
+                    let starRelAngle = obsAngle - star.angle;
+                    const R = pivotRadius * star.radiusOffset;
+                    const sx = cx - R * Math.sin(starRelAngle);
+                    const sy = pivotY - R * Math.cos(starRelAngle);
+
+                    if (sy < horizonY) { 
+                        SKY_CTX.beginPath();
+                        SKY_CTX.arc(sx, sy, star.size, 0, Math.PI*2);
+                        SKY_CTX.fill();
+                    }
+                });
+            }
+
+            // 3. 地面
+            const groundGrad = SKY_CTX.createLinearGradient(0, horizonY, 0, h);
+            groundGrad.addColorStop(0, "#064e3b");
+            groundGrad.addColorStop(1, "#022c22");
+            SKY_CTX.fillStyle = groundGrad;
+            SKY_CTX.fillRect(0, horizonY, w, h - horizonY);
+            
+            SKY_CTX.fillStyle = "#fff";
+            SKY_CTX.font = "bold 16px sans-serif";
+            SKY_CTX.textAlign = "center";
+            SKY_CTX.fillText("東", w * 0.1, horizonY + 30);
+            SKY_CTX.fillText("南", w * 0.5, horizonY + 30);
+            SKY_CTX.fillText("西", w * 0.9, horizonY + 30);
+
+            // 4. 太陽の描画
+            const celestialR = pivotRadius;
+            const sunX = cx - celestialR * Math.sin(sunRelAngle);
+            const sunY = pivotY - celestialR * Math.cos(sunRelAngle);
+
+            if (sunY < horizonY + 100) {
+                const sunGlow = SKY_CTX.createRadialGradient(sunX, sunY, 10, sunX, sunY, 60);
+                sunGlow.addColorStop(0, `rgba(252, 211, 77, ${Math.min(0.8, 0.4 + sunAltitude)})`);
+                sunGlow.addColorStop(1, "rgba(252, 211, 77, 0)");
+                SKY_CTX.fillStyle = sunGlow;
+                SKY_CTX.beginPath();
+                SKY_CTX.arc(sunX, sunY, 60, 0, Math.PI * 2);
+                SKY_CTX.fill();
+                
+                SKY_CTX.beginPath();
+                SKY_CTX.arc(sunX, sunY, 25, 0, Math.PI * 2);
+                SKY_CTX.fillStyle = "#fcd34d";
+                SKY_CTX.fill();
+            }
+
+            // 5. 月の描画
+            const moonSpaceAngle = getMoonOrbitAngle(state.time);
+            let moonRelAngle = obsAngle - moonSpaceAngle;
+            moonRelAngle = Math.atan2(Math.sin(moonRelAngle), Math.cos(moonRelAngle));
+
+            const moonX = cx - celestialR * Math.sin(moonRelAngle);
+            const moonY = pivotY - celestialR * Math.cos(moonRelAngle);
+
+            const phaseInfo = getPhaseInfo(moonSpaceAngle);
+
+            if (moonY < horizonY + 80) {
+                const isBrightSky = sunAltitude > -0.1;
+                // 星が見えているかどうかも渡す
+                drawUprightMoonPhase(SKY_CTX, moonX, moonY, 28, phaseInfo.radians, isBrightSky, isStarsVisible);
+                
+                if(PHASE_NAME_DISPLAY.innerText !== phaseInfo.name) {
+                    PHASE_NAME_DISPLAY.innerText = phaseInfo.name;
+                }
+            } else {
+                PHASE_NAME_DISPLAY.innerText = phaseInfo.name + " (地平線下)";
+            }
+
+            // 時間表示（画面内）
+            const timeData = formatTime(state.time);
+            SKY_CTX.font = "bold 15px monospace";
+            SKY_CTX.fillStyle = "#ffffff";
+            SKY_CTX.textAlign = "left";
+            // 背景
+            const textW = SKY_CTX.measureText(timeData.drawStr).width;
+            SKY_CTX.fillStyle = "rgba(0,0,0,0.5)";
+            SKY_CTX.fillRect(10, 10, textW + 10, 24);
+            SKY_CTX.fillStyle = "#ffffff";
+            SKY_CTX.fillText(timeData.drawStr, 15, 27);
+        }
+
+        function drawSkyGradient(ctx, w, h, sunAlt) {
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            if (sunAlt > 0.3) { 
+                grad.addColorStop(0, "#38bdf8");
+                grad.addColorStop(1, "#bae6fd");
+            } else if (sunAlt > 0) { 
+                grad.addColorStop(0, "#3b82f6");
+                grad.addColorStop(1, "#fbbf24"); 
+            } else if (sunAlt > -0.2) { 
+                grad.addColorStop(0, "#1e3a8a"); 
+                grad.addColorStop(0.7, "#7c2d12"); 
+                grad.addColorStop(1, "#ea580c"); 
+            } else { 
+                grad.addColorStop(0, "#020617");
+                grad.addColorStop(1, "#1e293b");
+            }
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
+
+        // isStarsVisible引数を追加：星が見えているときは、月の影を不透明にして星を隠す
+        function drawUprightMoonPhase(ctx, x, y, r, phaseRad, isDay, isStarsVisible) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            
+            // ベース（影部分）の描画
+            if (isDay) {
+                if (isStarsVisible) {
+                    // 星が見えている（薄暮など）なら、不透明な影色で星を隠す
+                    ctx.fillStyle = "#1e293b"; 
+                    ctx.fill();
+                } else {
+                    // 完全な昼間なら、薄く透ける（青空に馴染む）
+                    // ただし点線アウトラインが必要な場合（新月付近）を除く
+                    if (phaseRad < 0.2 || phaseRad > 2*Math.PI - 0.2) {
+                        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                        ctx.setLineDash([2, 3]);
+                        ctx.stroke();
+                        ctx.restore();
+                        return;
+                    }
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.1)"; 
+                    ctx.fill();
+                }
+            } else {
+                // 夜は不透明な影色
+                ctx.fillStyle = "#1e293b"; 
+                ctx.fill();
+            }
+
+            ctx.fillStyle = isDay ? "#ffffff" : "#f8fafc";
+            const p = phaseRad % (2 * Math.PI);
+
+            ctx.beginPath();
+            if (p <= Math.PI) {
+                ctx.arc(0, 0, r, -Math.PI/2, Math.PI/2);
+            }
+            
+            if (p < Math.PI) {
+                // Waxing (右側が光る)
+                ctx.beginPath();
+                ctx.arc(0, 0, r, -Math.PI/2, Math.PI/2); // 右半円
+                const w = -Math.cos(p) * r; 
+                ctx.ellipse(0, 0, Math.abs(w), r, 0, Math.PI/2, 3*Math.PI/2, w < 0);
+            } else {
+                // Waning (左側が光る)
+                const w = Math.cos(p) * r;
+                ctx.beginPath();
+                ctx.moveTo(0, r);
+                ctx.arc(0, 0, r, Math.PI/2, 3*Math.PI/2); // 左側の外周
+                ctx.ellipse(0, 0, Math.abs(w), r, 0, 3*Math.PI/2, Math.PI/2, w > 0);
+            }
+            
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // --- Loop ---
+        function draw() {
+            drawOrbitView();
+            drawSkyView();
+            const timeData = formatTime(state.time);
+            DAY_DISPLAY.innerText = timeData.dayStr;
+            TIME_DISPLAY.innerText = timeData.timeStr;
+            
+            // スライダー最大値を動的に増やすコードを削除
+            // 現在の値をスライダーに反映
+            if(state.isPlaying) {
+                TIME_SLIDER.value = state.time;
+            }
+        }
+
+        function update() {
+            if (state.isPlaying) {
+                state.time += state.speed;
+
+                // 60日（1440時間）に達したら停止
+                if (state.time >= state.maxTime) {
+                    state.time = state.maxTime;
+                    state.isPlaying = false;
+                    PLAY_BTN.innerText = "再生";
+                    draw();
+                    return; // ループ終了
+                }
+
+                draw();
+                state.animationId = requestAnimationFrame(update);
+            }
+        }
+
+        TIME_SLIDER.addEventListener('input', (e) => {
+            state.time = parseFloat(e.target.value);
+            draw();
+        });
+
+        PLAY_BTN.addEventListener('click', () => {
+            // 再生ボタンを押したとき、もし既に最後まで行っていたら0に戻す
+            if (!state.isPlaying && state.time >= state.maxTime) {
+                state.time = 0;
+            }
+
+            state.isPlaying = !state.isPlaying;
+            PLAY_BTN.innerText = state.isPlaying ? "停止" : "再生";
+            if(state.isPlaying) update();
+            else cancelAnimationFrame(state.animationId);
+        });
+
+        // スピード制御
+        SPEED_RADIOS.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                state.speed = parseFloat(e.target.value);
+            });
+        });
+
+        resizeCanvas();
+        draw(); 
+
+    </script>
+</body>
+</html>
