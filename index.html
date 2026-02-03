@@ -63,6 +63,11 @@
             border: 1px solid #334155;
         }
 
+        /* 右側のパネル（2番目の要素）を少し広くする */
+        .view-panel:nth-child(2) {
+            flex: 1.3; 
+        }
+
         .view-label {
             position: absolute;
             top: 15px;
@@ -230,6 +235,11 @@
                 flex: none; /* 伸縮しない */
                 width: 100%;
                 box-sizing: border-box;
+            }
+            
+            /* モバイルでは比率を戻す（または縦積みなのでwidth100%でOK） */
+            .view-panel:nth-child(2) {
+                flex: none;
             }
 
             /* キャンバスの高さを指定して、アスペクト比を維持 */
@@ -636,7 +646,7 @@
             
             const sunAltitude = Math.cos(sunRelAngle); 
 
-            // **3. 月の位置を先に計算** (星のクリッピングのため)
+            // **3. 月の位置を先に計算**
             const moonSpaceAngle = getMoonOrbitAngle(state.time);
             let moonRelAngle = obsAngle - moonSpaceAngle;
             moonRelAngle = Math.atan2(Math.sin(moonRelAngle), Math.cos(moonRelAngle));
@@ -646,16 +656,13 @@
             const moonY = pivotY - celestialR * Math.cos(moonRelAngle);
             const moonRadius = 28; // 表示サイズ
 
-            // 1. 背景を描画
+            // 1. 背景を描画 (Background)
             drawSkyGradient(SKY_CTX, w, h, sunAltitude);
 
-            // 2. 星 (常時描画するが、明るさで透明度を変える)
-            // 空の明るさに負けて見えなくなる演出
-            // sunAltitude が 0.4 (約20度) を超えると完全に見えなくなる
+            // 2. 星 (Stars)
             let starVisibility = 1.0;
             if (sunAltitude > 0.4) starVisibility = 0;
             else if (sunAltitude > -0.1) {
-                // -0.1(薄明) 〜 0.4(昼) の間で 1.0 -> 0.0 に減衰
                 starVisibility = 1.0 - ((sunAltitude + 0.1) / 0.5);
             }
 
@@ -667,26 +674,54 @@
                     const sx = cx - R * Math.sin(starRelAngle);
                     const sy = pivotY - R * Math.cos(starRelAngle);
 
-                    if (sy < horizonY) { 
-                        // **クリッピング処理**: 月の後ろにある星は描画しない
-                        // 月が地平線より上にある場合のみ判定
-                        if (moonY < horizonY + 80) {
-                            const dx = sx - moonX;
-                            const dy = sy - moonY;
-                            // 月の半径内ならスキップ
-                            if (dx*dx + dy*dy < moonRadius * moonRadius) {
-                                return; 
-                            }
+                    // クリッピング: 月の後ろは描画しない
+                    if (moonY < h) { // 地平線より下でもクリッピングは有効にしておく
+                        const dx = sx - moonX;
+                        const dy = sy - moonY;
+                        if (dx*dx + dy*dy < moonRadius * moonRadius) {
+                            return; 
                         }
-                        
-                        SKY_CTX.beginPath();
-                        SKY_CTX.arc(sx, sy, star.size, 0, Math.PI*2);
-                        SKY_CTX.fill();
                     }
+                    
+                    SKY_CTX.beginPath();
+                    SKY_CTX.arc(sx, sy, star.size, 0, Math.PI*2);
+                    SKY_CTX.fill();
                 });
             }
 
-            // 3. 地面
+            // 3. 太陽の描画 (Sun)
+            const sunX = cx - celestialR * Math.sin(sunRelAngle);
+            const sunY = pivotY - celestialR * Math.cos(sunRelAngle);
+
+            // 太陽は地面より下にあっても描画する（その後地面で隠すため）
+            const sunGlow = SKY_CTX.createRadialGradient(sunX, sunY, 10, sunX, sunY, 60);
+            sunGlow.addColorStop(0, `rgba(252, 211, 77, ${Math.min(0.8, 0.4 + sunAltitude)})`);
+            sunGlow.addColorStop(1, "rgba(252, 211, 77, 0)");
+            SKY_CTX.fillStyle = sunGlow;
+            SKY_CTX.beginPath();
+            SKY_CTX.arc(sunX, sunY, 60, 0, Math.PI * 2);
+            SKY_CTX.fill();
+            
+            SKY_CTX.beginPath();
+            SKY_CTX.arc(sunX, sunY, 25, 0, Math.PI * 2);
+            SKY_CTX.fillStyle = "#fcd34d";
+            SKY_CTX.fill();
+
+            // 4. 月の描画 (Moon)
+            const phaseInfo = getPhaseInfo(moonSpaceAngle);
+            // 月も地面より下にあっても描画する
+            drawUprightMoonPhase(SKY_CTX, moonX, moonY, moonRadius, phaseInfo.radians, sunAltitude);
+            
+            // 地平線より上にある時だけ名前を更新、なければ「地平線下」
+            if (moonY < horizonY + 80) {
+                if(PHASE_NAME_DISPLAY.innerText !== phaseInfo.name) {
+                    PHASE_NAME_DISPLAY.innerText = phaseInfo.name;
+                }
+            } else {
+                PHASE_NAME_DISPLAY.innerText = phaseInfo.name + " (地平線下)";
+            }
+
+            // 5. 地面 (Ground) - 最後に描画して天体を隠す
             const groundGrad = SKY_CTX.createLinearGradient(0, horizonY, 0, h);
             groundGrad.addColorStop(0, "#064e3b");
             groundGrad.addColorStop(1, "#022c22");
@@ -700,46 +735,11 @@
             SKY_CTX.fillText("南", w * 0.5, horizonY + 30);
             SKY_CTX.fillText("西", w * 0.9, horizonY + 30);
 
-            // 4. 太陽の描画
-            const sunX = cx - celestialR * Math.sin(sunRelAngle);
-            const sunY = pivotY - celestialR * Math.cos(sunRelAngle);
-
-            if (sunY < horizonY + 100) {
-                const sunGlow = SKY_CTX.createRadialGradient(sunX, sunY, 10, sunX, sunY, 60);
-                sunGlow.addColorStop(0, `rgba(252, 211, 77, ${Math.min(0.8, 0.4 + sunAltitude)})`);
-                sunGlow.addColorStop(1, "rgba(252, 211, 77, 0)");
-                SKY_CTX.fillStyle = sunGlow;
-                SKY_CTX.beginPath();
-                SKY_CTX.arc(sunX, sunY, 60, 0, Math.PI * 2);
-                SKY_CTX.fill();
-                
-                SKY_CTX.beginPath();
-                SKY_CTX.arc(sunX, sunY, 25, 0, Math.PI * 2);
-                SKY_CTX.fillStyle = "#fcd34d";
-                SKY_CTX.fill();
-            }
-
-            // 5. 月の描画 (位置計算は先頭で実施済み)
-            const phaseInfo = getPhaseInfo(moonSpaceAngle);
-
-            if (moonY < horizonY + 80) {
-                const isBrightSky = sunAltitude > -0.1;
-                // isStarsVisible引数は削除し、sunAltitudeを渡す
-                drawUprightMoonPhase(SKY_CTX, moonX, moonY, moonRadius, phaseInfo.radians, sunAltitude);
-                
-                if(PHASE_NAME_DISPLAY.innerText !== phaseInfo.name) {
-                    PHASE_NAME_DISPLAY.innerText = phaseInfo.name;
-                }
-            } else {
-                PHASE_NAME_DISPLAY.innerText = phaseInfo.name + " (地平線下)";
-            }
-
             // 時間表示（画面内）
             const timeData = formatTime(state.time);
             SKY_CTX.font = "bold 15px monospace";
             SKY_CTX.fillStyle = "#ffffff";
             SKY_CTX.textAlign = "left";
-            // 背景
             const textW = SKY_CTX.measureText(timeData.drawStr).width;
             SKY_CTX.fillStyle = "rgba(0,0,0,0.5)";
             SKY_CTX.fillRect(10, 10, textW + 10, 24);
