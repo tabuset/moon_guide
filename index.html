@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>月の満ち欠けシミュレーター</title>
+    <title>月の満ち欠けシミュレーター </title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -306,7 +306,7 @@
                     <span class="control-label">現在の状態</span>
                     <div class="info-box">
                         <span id="dayDisplay" class="info-item">0日目</span>
-                        <span id="timeDisplay" class="info-item">12:00</span>
+                        <span id="timeDisplay" class="info-item">00:00</span>
                         <span id="phaseName" class="phase-name">新月</span>
                     </div>
                 </div>
@@ -338,7 +338,8 @@
         <div class="slider-section">
             <div class="view-panel slider-panel">
                 <span class="control-label" style="margin-bottom: 5px; color: #94a3b8; font-weight: bold; font-size: 0.9rem;">時間を動かす (60日分)</span>
-                <input type="range" id="timeSlider" min="0" max="1440" value="12" step="0.1">
+                <!-- 初期値を0に変更 -->
+                <input type="range" id="timeSlider" min="0" max="1440" value="0" step="0.1">
             </div>
         </div>
 
@@ -379,7 +380,7 @@
         }
 
         let state = {
-            time: 12, // Start at Noon (12:00)
+            time: 0, // 初期値を0に変更（経過時間）
             isPlaying: false,
             animationId: null,
             moonPeriodHours: 29.53 * 24,
@@ -408,8 +409,10 @@
         }
 
         function getEarthRotationAngle(time) {
-            const dayProgress = (time - 12) / 24;
-            return (SUN_ANGLE - dayProgress * 2 * Math.PI + 2 * Math.PI) % (2 * Math.PI);
+            // time=0 が0:00(真夜中)になるように変更
+            // 太陽はPIの方向にあるため、0:00(真夜中)の観測者は0(2PI)の方向にいる必要がある。
+            const dayProgress = time / 24;
+            return (- dayProgress * 2 * Math.PI + 2 * Math.PI) % (2 * Math.PI);
         }
 
         function getPhaseInfo(moonAngle) {
@@ -431,9 +434,12 @@
         }
 
         function formatTime(totalHours) {
+            // 経過時間(totalHours) をそのまま時刻として表示 (0スタートなのでオフセットなし)
+            const currentTotalHours = totalHours; 
+            
             const days = Math.floor(totalHours / 24);
-            const hours = Math.floor(totalHours % 24);
-            const mins = Math.floor((totalHours % 1) * 60);
+            const hours = Math.floor(currentTotalHours % 24);
+            const mins = Math.floor((currentTotalHours % 1) * 60);
             return {
                 dayStr: `${days}日目`,
                 timeStr: `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`,
