@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>月の満ち欠けシミュレーター (修正版)</title>
+    <title>月の満ち欠けシミュレーター</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -135,7 +135,7 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            padding-bottom: 10px;
+            padding-bottom: 15px;
             border-bottom: 1px solid #334155;
         }
         .control-group:last-child {
@@ -168,7 +168,7 @@
 
         .speed-options {
             display: flex;
-            justify-content: space-around; /* 横並びに戻す */
+            justify-content: space-around;
             gap: 5px;
             background: rgba(0,0,0,0.2);
             padding: 8px;
@@ -190,14 +190,18 @@
             transform: scale(1.1);
         }
 
+        /* --- 情報ボックス (修正箇所) --- */
         .info-box {
             background: rgba(0,0,0,0.2);
             padding: 10px;
             border-radius: 6px;
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            flex-direction: row; /* 横並びに変更 */
+            justify-content: space-around; /* 均等配置 */
+            align-items: center; /* 上下中央 */
+            gap: 10px;
             text-align: center;
+            flex-wrap: wrap; /* 画面が狭い場合に折り返す */
         }
         .info-item {
             font-family: monospace;
@@ -209,7 +213,7 @@
             color: #fbbf24;
             font-size: 1.2rem;
             text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
-            margin-top: 4px;
+            margin-top: 0; /* マージンリセット */
         }
 
         /* --- スライダーパネル --- */
@@ -294,14 +298,20 @@
                 <canvas id="orbitCanvas"></canvas>
             </div>
 
-            <!-- 中：コントロールパネル -->
+            <!-- 中：コントロールパネル (レイアウト修正: 状態 -> スピード -> 再生) -->
             <div class="controls-panel">
-                <!-- 再生ボタン -->
+                
+                <!-- 1. 情報表示 (一番上に配置) -->
                 <div class="control-group">
-                    <button id="playBtn" class="btn">再生</button>
+                    <span class="control-label">現在の状態</span>
+                    <div class="info-box">
+                        <span id="dayDisplay" class="info-item">0日目</span>
+                        <span id="timeDisplay" class="info-item">12:00</span>
+                        <span id="phaseName" class="phase-name">新月</span>
+                    </div>
                 </div>
 
-                <!-- スピード調整 -->
+                <!-- 2. 再生スピード (真ん中に配置) -->
                 <div class="control-group">
                     <span class="control-label">再生スピード</span>
                     <div class="speed-options">
@@ -311,14 +321,9 @@
                     </div>
                 </div>
 
-                <!-- 情報表示 -->
+                <!-- 3. 再生ボタン (一番下に配置) -->
                 <div class="control-group">
-                    <span class="control-label">現在の状態</span>
-                    <div class="info-box">
-                        <span id="dayDisplay" class="info-item">0日目</span>
-                        <span id="timeDisplay" class="info-item">12:00</span>
-                        <span id="phaseName" class="phase-name">新月</span>
-                    </div>
+                    <button id="playBtn" class="btn">再生</button>
                 </div>
             </div>
 
